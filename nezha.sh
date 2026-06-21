@@ -1,5 +1,5 @@
 #!/bin/bash
-# 哪吒监控 一键管理脚本 - nezha.sh（已强化依赖安装）
+# 哪吒监控 一键管理脚本 - nezha.sh（依赖修复版）
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -7,9 +7,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# 强化依赖安装
 install_deps() {
-    echo "正在检查并安装必要依赖..."
+    echo "正在检查并安装必要依赖（包括 unzip）..."
     if command -v apt-get >/dev/null 2>&1; then
         apt-get update -qq
         apt-get install -y curl wget git tar nginx socat unzip ca-certificates
@@ -18,7 +17,7 @@ install_deps() {
     elif command -v dnf >/dev/null 2>&1; then
         dnf install -y curl wget git tar nginx socat unzip ca-certificates
     else
-        echo "无法识别包管理器，请手动安装 unzip curl wget nginx"
+        echo "警告：无法自动安装依赖，请手动安装 unzip"
     fi
 }
 
@@ -38,41 +37,34 @@ show_menu() {
     echo -e "9. 检查并更新哪吒"
     echo -e "10. 卸载哪吒面板"
     echo -e "11. 关闭 WebSSH（安全推荐）"
-    echo -e "12. 修改域名配置"
-    echo -e "13. 管理定时更新任务"
     echo -e "0. 退出脚本"
     echo -e "${GREEN}=======================================${NC}"
-    echo -n "请输入选项 [0-13]: "
+    echo -n "请输入选项 [0-11]: "
 }
 
-# ...（中间部分保持不变，我这里省略以节省篇幅，下面重点是修复部分）
-
 install_nezha() {
-    install_deps   # 每次安装前都检查依赖
-    echo "正在下载并执行完整安装脚本..."
+    install_deps
+    echo "正在执行完整安装..."
     wget -O nezha-full-install.sh https://raw.githubusercontent.com/xiaoluaibb/nezha/refs/heads/main/nezha-full-install.sh
     chmod +x nezha-full-install.sh
     ./nezha-full-install.sh
 }
 
-# 其他函数保持不变...
-
+# 主循环
 while true; do
     show_menu
     read -r choice
     case $choice in
-        1) 
-            echo "系统版本："
+        1)
             cat /etc/os-release 2>/dev/null
             uname -a
             free -h
             df -h
             ;;
-        2) 
-            echo -e "${YELLOW}=== Docker 容器 ===${NC}"
-            docker ps | grep -E 'nezha|dashboard'
-            echo -e "\n${YELLOW}=== Agent ===${NC}"
-            ps aux | grep nezha-agent
+        2)
+            echo "=== Docker ==="; docker ps | grep -E 'nezha|dashboard'
+            echo -e "\n=== Agent ==="; ps aux | grep nezha-agent
+            echo -e "\n=== Nginx ==="; systemctl status nginx --no-pager | head -15
             ;;
         3) install_nezha ;;
         4) docker restart nezha-dashboard 2>/dev/null || true; systemctl restart nginx nezha-agent; echo "重启完成" ;;
@@ -80,7 +72,7 @@ while true; do
         6) docker start nezha-dashboard 2>/dev/null || true; systemctl start nginx nezha-agent; echo "已启动" ;;
         7) docker logs -f --tail 100 nezha-dashboard ;;
         8) journalctl -u nezha-agent -f ;;
-        9) cd /opt/nezha 2>/dev/null && ./nezha.sh install || echo "更新失败" ;;
+        9) cd /opt/nezha 2>/dev/null && ./nezha.sh install || echo "未找到更新脚本" ;;
         10) echo "确认卸载？(y/n)"; read c; [[ $c == "y" ]] && docker rm -f nezha-dashboard 2>/dev/null; rm -rf /opt/nezha; echo "卸载完成" ;;
         11) sed -i 's/enable_terminal: true/enable_terminal: false/' /opt/nezha/dashboard/data/config.yaml 2>/dev/null && echo "WebSSH 已关闭" ;;
         0) exit 0 ;;
