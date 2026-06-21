@@ -1,5 +1,5 @@
 #!/bin/bash
-# 哪吒监控 一键管理脚本 - nezha.sh（依赖修复版）
+# 哪吒监控 一键管理脚本 - nezha.sh（最终版）
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -7,6 +7,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# 强化依赖安装
 install_deps() {
     echo "正在检查并安装必要依赖（包括 unzip）..."
     if command -v apt-get >/dev/null 2>&1; then
@@ -16,8 +17,6 @@ install_deps() {
         yum install -y curl wget git tar nginx socat unzip ca-certificates
     elif command -v dnf >/dev/null 2>&1; then
         dnf install -y curl wget git tar nginx socat unzip ca-certificates
-    else
-        echo "警告：无法自动安装依赖，请手动安装 unzip"
     fi
 }
 
@@ -44,18 +43,28 @@ show_menu() {
 
 install_nezha() {
     install_deps
-    echo "正在执行完整安装..."
-    wget -O nezha-full-install.sh https://raw.githubusercontent.com/xiaoluaibb/nezha/refs/heads/main/nezha-full-install.sh
+    echo "正在下载并执行完整安装脚本..."
+    cat > nezha-full-install.sh << 'FULL'
+#!/bin/bash
+set -e
+echo "=== 哪吒完整安装 ==="
+apt-get install -y curl wget git tar nginx socat unzip
+echo -n "请输入域名: "
+read DOMAIN
+curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/install.sh -o nezha.sh && chmod +x nezha.sh
+env NZ_DOMAIN=$DOMAIN NZ_PORT=8008 ./nezha.sh install
+echo "安装完成！面板地址: https://$DOMAIN"
+FULL
     chmod +x nezha-full-install.sh
     ./nezha-full-install.sh
 }
 
-# 主循环
 while true; do
     show_menu
     read -r choice
     case $choice in
         1)
+            echo "=== 系统信息 ==="
             cat /etc/os-release 2>/dev/null
             uname -a
             free -h
@@ -72,10 +81,10 @@ while true; do
         6) docker start nezha-dashboard 2>/dev/null || true; systemctl start nginx nezha-agent; echo "已启动" ;;
         7) docker logs -f --tail 100 nezha-dashboard ;;
         8) journalctl -u nezha-agent -f ;;
-        9) cd /opt/nezha 2>/dev/null && ./nezha.sh install || echo "未找到更新脚本" ;;
+        9) cd /opt/nezha 2>/dev/null && ./nezha.sh install || echo "更新失败" ;;
         10) echo "确认卸载？(y/n)"; read c; [[ $c == "y" ]] && docker rm -f nezha-dashboard 2>/dev/null; rm -rf /opt/nezha; echo "卸载完成" ;;
         11) sed -i 's/enable_terminal: true/enable_terminal: false/' /opt/nezha/dashboard/data/config.yaml 2>/dev/null && echo "WebSSH 已关闭" ;;
-        0) exit 0 ;;
+        0) echo "退出"; exit 0 ;;
         *) echo "无效选项" ;;
     esac
     echo -e "\n按任意键返回菜单..."
